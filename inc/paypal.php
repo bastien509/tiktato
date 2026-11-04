@@ -115,6 +115,7 @@ function topup_create(int $userId, $rawUsd): string
         ]],
         'payment_source' => ['paypal' => ['experience_context' => [
             'brand_name'          => (string) cfg('app.name', 'TikTato'),
+            'locale'              => 'en-US',
             'shipping_preference' => 'NO_SHIPPING',
             'user_action'         => 'PAY_NOW',
             'return_url'          => abs_url('paypal-return.php'),

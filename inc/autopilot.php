@@ -56,6 +56,7 @@ function vault_setup_start(int $uid): string
             'experience_context'             => [
                 'shipping_preference' => 'NO_SHIPPING',
                 'brand_name'          => (string) cfg('app.name', 'TikTato'),
+                'locale'              => 'en-US',
                 'return_url'          => abs_url('vault-return.php'),
                 'cancel_url'          => abs_url('vault-return.php?cancel=1'),
             ],
