@@ -201,6 +201,7 @@
       if (d.my_challenge) renderWait(); else if (!d.active_match) go('arena');
     }
     handleNotifications(d.notifications);
+    if (d.autopilot_due) autopilotTick();
     S.firstLobby = false;
   }
 
@@ -939,6 +940,7 @@
         ? 'PayPal checkout is being connected. Top-ups open soon.'
         : d.paypal.mode === 'sandbox' ? 'Test mode: pay with a PayPal sandbox buyer account. No real money moves.' : 'You will be sent to PayPal to pay securely.';
       renderLimit(d.limits);
+      renderAutopilot(d.autopilot);
       var ul = $('#ledger');
       ul.textContent = '';
       if (!d.ledger.length) ul.appendChild(h('li', 'note', 'No coin activity yet.'));
@@ -1001,6 +1003,160 @@
     }
   }
 
+  /* ------------------------------------------------------------ Autopilot (agent mandate) */
+
+  function savePaypal(btn) {
+    if (btn) btn.disabled = true;
+    return api('vault_setup', {}).then(function (d) { location.href = d.approve_url; }, function (e) {
+      if (btn) btn.disabled = false;
+      errorToast(e);
+    });
+  }
+  function apSelect(label, name, values, fmtFn, selected) {
+    var f = h('label', 'ap-field');
+    f.appendChild(h('span', '', label));
+    var sel = h('select', '');
+    sel.name = name;
+    values.forEach(function (v) {
+      var o = h('option', '', fmtFn(v));
+      o.value = v;
+      if (v === selected) o.selected = true;
+      sel.appendChild(o);
+    });
+    f.appendChild(sel);
+    return f;
+  }
+  function renderAutopilot(ap) {
+    var card = $('#autopilotCard');
+    if (!card || !ap) return;
+    card.textContent = '';
+    var head = h('div', 'ap-head');
+    head.appendChild(h('span', 'tato-face', ''));
+    $('.tato-face', head).appendChild(h('i', ''));
+    $('.tato-face', head).appendChild(h('i', ''));
+    var t = h('div', '');
+    t.appendChild(h('b', '', 'Tato Autopilot'));
+    t.appendChild(h('small', '', 'Agent payments inside limits you approve'));
+    head.appendChild(t);
+    if (ap.mandate) head.appendChild(h('span', 'ap-badge ' + ap.mandate.status, ap.mandate.status === 'active' ? 'ON' : 'PAUSED'));
+    card.appendChild(head);
+
+    if (!ap.paypal_saved) {
+      card.appendChild(h('p', '', 'Save your PayPal account once. Tato can then top you up automatically, without a redirect, but only inside the limits you set. You can pause or revoke it at any time.'));
+      var save = h('button', 'pack-pay ap-save', 'Save PayPal for Autopilot');
+      save.type = 'button';
+      save.addEventListener('click', function () { savePaypal(save); });
+      card.appendChild(save);
+      card.appendChild(h('small', 'ap-note', 'You approve this on PayPal. Nothing is charged now.'));
+      return;
+    }
+
+    if (!ap.mandate) {
+      card.appendChild(h('p', '', 'PayPal saved (' + (ap.payer_email || 'PayPal account') + '). Choose what Tato may do:'));
+      var o = ap.options;
+      var form = h('div', 'ap-form');
+      form.appendChild(apSelect('Pack per top-up', 'pack_usd', o.packs, function (v) { return '$' + v + ' → ' + fmt(v * 95) + ' coins'; }, 5));
+      form.appendChild(apSelect('When balance is below', 'refill_below', o.refill_below, function (v) { return fmt(v) + ' coins'; }, 200));
+      form.appendChild(apSelect('Weekly cap', 'weekly_cap_usd', o.caps, function (v) { return '$' + v + ' / week'; }, 20));
+      form.appendChild(apSelect('Expires after', 'days', o.days, function (v) { return v + ' days'; }, 7));
+      card.appendChild(form);
+      var terms = h('p', 'ap-terms', '');
+      card.appendChild(terms);
+      var agree = h('label', 'check');
+      var box = h('input', '');
+      box.type = 'checkbox';
+      agree.appendChild(box);
+      agree.appendChild(h('span', '', 'I approve these Autopilot terms.'));
+      card.appendChild(agree);
+      var go = h('button', 'btn btn-cta btn-block', 'Turn on Autopilot');
+      go.type = 'button';
+      var vals = function () {
+        var v = {};
+        $$('select', form).forEach(function (s) { v[s.name] = +s.value; });
+        return v;
+      };
+      var sync = function () {
+        var v = vals();
+        terms.textContent = 'I allow Tato to buy a $' + v.pack_usd + ' coin pack with my saved PayPal account when my balance falls below ' + v.refill_below + ' coins, up to $' + v.weekly_cap_usd + ' per week, for ' + v.days + ' days.';
+        go.disabled = !box.checked || v.weekly_cap_usd < v.pack_usd;
+      };
+      $$('select', form).forEach(function (s) { s.addEventListener('change', sync); });
+      box.addEventListener('change', sync);
+      sync();
+      go.addEventListener('click', function () {
+        go.disabled = true;
+        api('mandate_create', Object.assign(vals(), { consent: true })).then(function (d) {
+          toast({ icon: '🤖', title: 'Autopilot is on', text: 'Tato will keep you topped up inside your limits.' });
+          renderAutopilot(Object.assign(d.autopilot, { options: ap.options }));
+        }, function (e) { go.disabled = false; errorToast(e); });
+      });
+      card.appendChild(go);
+      card.appendChild(apRemoveLink(ap));
+      return;
+    }
+
+    var m = ap.mandate;
+    card.appendChild(moneyLines([
+      ['Pack per top-up', '$' + m.pack_usd + ' → +' + fmt(m.pack_usd * 95), 'win'],
+      ['When balance is below', fmt(m.refill_below) + ' coins'],
+      ['Used this week', '$' + m.spent_7d_usd.toFixed(2) + ' of $' + m.weekly_cap_usd],
+      ['Expires', new Date(m.expires_at.replace(' UTC', 'Z').replace(' ', 'T')).toLocaleDateString()]
+    ]));
+    var bar = h('div', 'limit-bar');
+    var fill = h('i', '');
+    fill.style.width = Math.min(100, m.spent_7d_usd / Math.max(1, m.weekly_cap_usd) * 100) + '%';
+    bar.appendChild(fill);
+    card.appendChild(bar);
+    if (ap.recent.length) {
+      var ul = h('ul', 'ap-recent');
+      ap.recent.forEach(function (r) {
+        ul.appendChild(h('li', '', (r.status === 'completed' ? '✓ ' : '✕ ') + '$' + r.usd + ' → +' + fmt(r.coins) + ' · ' + new Date(r.at.replace(' ', 'T')).toLocaleString()));
+      });
+      card.appendChild(ul);
+    }
+    var row = h('div', 'sheet-actions');
+    var pause = h('button', 'btn btn-ghost', m.status === 'active' ? 'Pause' : 'Resume');
+    var revoke = h('button', 'btn btn-ghost', 'Revoke');
+    pause.type = revoke.type = 'button';
+    pause.addEventListener('click', function () { apChange(m.status === 'active' ? 'pause' : 'resume', ap); });
+    revoke.addEventListener('click', function () { apChange('revoke', ap); });
+    row.appendChild(pause);
+    row.appendChild(revoke);
+    card.appendChild(row);
+    card.appendChild(apRemoveLink(ap));
+  }
+  function apRemoveLink(ap) {
+    var b = h('button', 'ap-link', 'Remove saved PayPal');
+    b.type = 'button';
+    b.addEventListener('click', function () {
+      confirmBox('Remove saved PayPal?', h('p', 'note', 'Autopilot stops and TikTato deletes the saved PayPal token. You can still buy coins with a normal PayPal checkout.'), 'Remove', function () {
+        return api('vault_remove', {}).then(function (d) { renderAutopilot(Object.assign(d.autopilot, { options: ap.options })); });
+      });
+    });
+    return b;
+  }
+  function apChange(action, ap) {
+    api('mandate_change', { action: action }).then(function (d) {
+      toast({ icon: '🤖', title: action === 'revoke' ? 'Autopilot revoked' : action === 'pause' ? 'Autopilot paused' : 'Autopilot resumed' });
+      renderAutopilot(Object.assign(d.autopilot, { options: ap.options }));
+    }, errorToast);
+  }
+
+  // Lobby says the balance is under the mandate's refill level: let the server decide and charge.
+  var apTicking = false;
+  function autopilotTick() {
+    if (apTicking) return;
+    apTicking = true;
+    api('autopilot_tick', {}).then(function (d) {
+      if (d.topup && d.topup.charged) {
+        setMe(d.me);
+        toast({ icon: '🤖', title: 'Tato Autopilot: +' + fmt(d.topup.coins) + ' coins', text: 'Bought a $' + d.topup.usd + ' pack with your saved PayPal (your mandate).' });
+        coinRain(d.topup.coins, null);
+        if (S.view === 'wallet') loadWallet();
+      }
+    }, function () {}).then(function () { apTicking = false; });
+  }
+
   /* ------------------------------------------------------------ Tato (AI agent) */
 
   var tatoBusy = false;
@@ -1022,6 +1178,7 @@
       card.appendChild(h('small', '', 'Nothing is charged until you approve on PayPal.'));
     } else if (c.type === 'confirm') {
       card.appendChild(h('b', '', c.title));
+      if (c.terms) card.appendChild(h('p', 'ap-terms', c.terms));
       card.appendChild(moneyLines(c.lines.map(function (l) { return [l[0], l[1], /^\+/.test(l[1]) ? 'win' : /^−/.test(l[1]) ? 'lose' : '']; })));
       var row = h('div', 'sheet-actions');
       var no = h('button', 'btn btn-ghost', 'Not now');
@@ -1042,6 +1199,9 @@
             go('wait');
           } else if (d.result.go === 'game') {
             location.hash = 'game/' + d.result.match_id;
+          } else if (d.result.go === 'wallet') {
+            go('wallet');
+            loadWallet();
           } else {
             go('arena');
           }
@@ -1050,6 +1210,21 @@
       row.appendChild(no);
       row.appendChild(yes);
       card.appendChild(row);
+    } else if (c.type === 'connect_paypal') {
+      card.appendChild(h('b', '', 'Save PayPal for Autopilot'));
+      card.appendChild(h('p', '', 'Approve once on PayPal. Nothing is charged now.'));
+      var sp = h('button', 'pack-pay tato-pay', 'Save PayPal');
+      sp.type = 'button';
+      sp.addEventListener('click', function () { savePaypal(sp); });
+      card.appendChild(sp);
+    } else if (c.type === 'autotopup') {
+      card.appendChild(h('b', '', '🤖 Autopilot top-up'));
+      card.appendChild(moneyLines([['Charged to saved PayPal', '$' + c.usd], ['Coins added', '+' + fmt(c.coins), 'win']]));
+      coinRain(c.coins, card);
+    } else if (c.type === 'autopilot') {
+      var st = c.status.mandate;
+      card.appendChild(h('b', '', 'Tato Autopilot'));
+      card.appendChild(h('p', '', st ? 'Status: ' + st.status + ' · $' + st.spent_7d_usd.toFixed(2) + ' of $' + st.weekly_cap_usd + ' used this week.' : 'Autopilot is off. Your saved PayPal is kept until you remove it.'));
     } else if (c.type === 'limit') {
       var r = c.result;
       card.appendChild(h('b', '', 'Weekly limit'));

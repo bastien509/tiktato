@@ -124,6 +124,7 @@ page_head('TikTato · Arena', 'app', [
     <div class="packs" id="packs"></div>
     <p class="note" id="ppNote"></p>
     <div class="limit-card" id="limitCard"></div>
+    <div class="autopilot-card" id="autopilotCard"></div>
     <div class="section-head"><h2>History</h2></div>
     <ul class="ledger" id="ledger"></ul>
   </section>
@@ -250,6 +251,7 @@ page_head('TikTato · Arena', 'app', [
       <button type="button">What's my balance?</button>
       <button type="button">Buy $10 of coins</button>
       <button type="button">Set a $20 weekly limit</button>
+      <button type="button">Set up Autopilot</button>
       <button type="button">Find me a contest</button>
       <button type="button">How did my last games go?</button>
     </div>

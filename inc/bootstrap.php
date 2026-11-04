@@ -28,7 +28,7 @@ $GLOBALS['TTT_CFG'] = (static function (): array {
 
 const TTT_AVATARS = ['🦁', '🐯', '🦊', '🐼', '🐸', '🐵', '🦅', '🐬', '🦖', '🐺', '🐨', '🐧'];
 const TTT_COLORS  = ['#F5C518', '#D21034', '#1E6BFF', '#14B8A6', '#22C55E', '#FF7A1A'];
-const TTT_ASSET_VER = '2';
+const TTT_ASSET_VER = '3';
 
 function cfg(string $path, $default = null)
 {
@@ -76,7 +76,7 @@ function db(): PDO
 /** Creates the tables once (idempotent); a lock file skips the work afterwards. */
 function install_schema(PDO $pdo): void
 {
-    $lock = __DIR__ . '/schema-v2.lock';
+    $lock = __DIR__ . '/schema-v3.lock';
     if (is_file($lock)) {
         return;
     }
@@ -95,6 +95,16 @@ function install_schema(PDO $pdo): void
         if (!in_array($col, $have, true)) {
             $pdo->exec("ALTER TABLE users ADD COLUMN $col $type AFTER draws");
         }
+    }
+    // v3: link PayPal orders to the agent mandate that paid them.
+    $have = array_map('strtolower', $pdo->query(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'paypal_orders'"
+    )->fetchAll(PDO::FETCH_COLUMN));
+    if (!in_array('source', $have, true)) {
+        $pdo->exec("ALTER TABLE paypal_orders ADD COLUMN source ENUM('checkout','mandate') NOT NULL DEFAULT 'checkout' AFTER mode");
+    }
+    if (!in_array('mandate_id', $have, true)) {
+        $pdo->exec('ALTER TABLE paypal_orders ADD COLUMN mandate_id INT UNSIGNED NULL AFTER source');
     }
     @file_put_contents($lock, gmdate('c'));
 }

@@ -98,6 +98,35 @@ function agent_tools(): array
             'inputSchema' => $obj(['limit' => ['type' => 'integer', 'description' => '1 to 10']], ['limit']),
             'strict' => true,
         ],
+        [
+            'name' => 'get_autopilot',
+            'description' => 'Read Tato Autopilot: whether the player saved a PayPal account, the active mandate (pack, refill level, weekly cap, spent this week, expiry, status) and recent automatic top-ups.',
+            'inputSchema' => $obj([], []),
+            'strict' => true,
+        ],
+        [
+            'name' => 'propose_autopilot',
+            'description' => 'Prepare an Autopilot mandate for the player to approve with a button: Tato may buy one pack with their saved PayPal when the balance falls below a level, up to a weekly cap, until it expires. If no PayPal account is saved yet, this shows a "Save PayPal" button instead.',
+            'inputSchema' => $obj([
+                'pack_usd'           => ['type' => 'integer', 'enum' => MANDATE_PACKS_USD],
+                'refill_below_coins' => ['type' => 'integer', 'enum' => MANDATE_REFILL_BELOW],
+                'weekly_cap_usd'     => ['type' => 'integer', 'enum' => MANDATE_CAPS_USD],
+                'days'               => ['type' => 'integer', 'enum' => MANDATE_DAYS],
+            ], ['pack_usd', 'refill_below_coins', 'weekly_cap_usd', 'days']),
+            'strict' => true,
+        ],
+        [
+            'name' => 'autopilot_topup_now',
+            'description' => 'Buy one pack right now with the saved PayPal account, under the active Autopilot mandate. Allowed only inside the mandate (pack size, weekly cap, daily cap, cool-down, weekly limit); the server refuses anything else. Only use it when the player asks for coins and Autopilot is active.',
+            'inputSchema' => $obj([], []),
+            'strict' => true,
+        ],
+        [
+            'name' => 'change_autopilot',
+            'description' => 'Pause or revoke Autopilot immediately, or prepare a "resume" for the player to confirm with a button.',
+            'inputSchema' => $obj(['action' => ['type' => 'string', 'enum' => ['pause', 'resume', 'revoke']]], ['action']),
+            'strict' => true,
+        ],
     ];
 }
 
@@ -116,10 +145,12 @@ How TikTato works:
 - 30 seconds per move; a player whose clock runs out forfeits. Unmatched contests refund after 10 minutes, or anytime on cancel.
 - Practice games against the built-in AI are free.
 - This deployment uses the PayPal sandbox: no real money moves.
+- Tato Autopilot: the player can save their PayPal account once (approved on PayPal) and approve a mandate. Within it, you may buy one pack for them without a PayPal redirect when their balance drops below the chosen level or when they ask you. Hard limits: the mandate's pack size and weekly cap, at most 3 packs per day, a 2-minute cool-down, the player's weekly limit and the expiry date. The player can pause or revoke it anytime, and you pause or revoke it immediately when asked.
 
 How you work:
 - Use tools for every fact about the player's wallet, limits, contests or matches. Never guess numbers.
-- You cannot move coins yourself. start_paypal_checkout only shows a PayPal button; propose_contest_action only shows a Confirm button. After calling them, tell the player what will happen when they press the button, and never say the payment or contest is already done.
+- Outside Autopilot you cannot move coins yourself. start_paypal_checkout only shows a PayPal button; propose_contest_action and propose_autopilot only show a Confirm button. After calling them, tell the player what will happen when they press the button, and never say it is already done.
+- autopilot_topup_now really charges the saved PayPal account. Use it only when the player clearly asks for coins now and Autopilot is active, and report exactly what the tool returned.
 - Encourage responsible play: suggest a weekly limit when a player buys often or chases losses, and explain the 24-hour cool-down for raising it. Never pressure anyone to buy coins or play for coins. Practice mode is always an option.
 - Coins cannot be cashed out in this demo. Do not give financial or gambling advice beyond explaining TikTato's own rules.
 - Keep replies short and friendly (2 to 4 sentences), in the player's language, plain text without markdown headings.
@@ -197,14 +228,80 @@ function agent_tool(int $uid, string $name, array $in): array
                 $net = $outcome === 'draw' ? 0 : ($won ? (int) $m['winner_payout'] - (int) $m['stake'] : -(int) $m['stake']);
                 return ['match_id' => (int) $m['id'], 'opponent' => $m['opponent'], 'entry_coins' => (int) $m['stake'], 'outcome' => $outcome, 'how' => $m['result'], 'net_coins' => $net, 'at' => $m['finished_at'] . ' UTC'];
             }, $rows)], null];
+
+        case 'get_autopilot':
+            return [mandate_status($uid), null];
+
+        case 'propose_autopilot':
+            $pack = (int) ($in['pack_usd'] ?? 0);
+            $below = (int) ($in['refill_below_coins'] ?? 0);
+            $cap = (int) ($in['weekly_cap_usd'] ?? 0);
+            $days = (int) ($in['days'] ?? 0);
+            mandate_validate($pack, $below, $cap, $days);
+            $v = vault_row($uid);
+            if (!$v || $v['status'] !== 'active') {
+                return [
+                    ['status' => 'needs_saved_paypal', 'note' => 'The player must first save PayPal with the button shown; then ask again to approve the mandate.'],
+                    ['type' => 'connect_paypal'],
+                ];
+            }
+            $id = agent_park($uid, ['action' => 'mandate', 'pack' => $pack, 'below' => $below, 'cap' => $cap, 'days' => $days]);
+            return [
+                ['status' => 'awaiting_player_confirmation'],
+                ['type' => 'confirm', 'proposal_id' => $id, 'title' => 'Turn on Tato Autopilot', 'terms' => mandate_terms_text($pack, $below, $cap, $days), 'lines' => [
+                    ['Pack per top-up', '$' . $pack . ' → +' . topup_split($pack)['credit']],
+                    ['When balance is below', $below . ' coins'],
+                    ['Weekly cap', '$' . $cap],
+                    ['Expires', 'in ' . $days . ' days'],
+                ]],
+            ];
+
+        case 'autopilot_topup_now':
+            $r = mandate_charge($uid, 'tato');
+            return [$r, $r['charged'] ? ['type' => 'autotopup', 'usd' => $r['usd'], 'coins' => $r['coins']] : null];
+
+        case 'change_autopilot':
+            $action = (string) ($in['action'] ?? '');
+            if ($action === 'pause' || $action === 'revoke') {
+                if ($action === 'pause') {
+                    mandate_set_paused($uid, true);
+                } else {
+                    mandate_end($uid, 'revoked');
+                    agent_log($uid, 'confirm', 'mandate_revoked', []);
+                }
+                return [['status' => $action === 'pause' ? 'paused' : 'revoked'], ['type' => 'autopilot', 'status' => mandate_status($uid)]];
+            }
+            if ($action === 'resume') {
+                $m = mandate_active($uid);
+                if (!$m || $m['status'] !== 'paused') {
+                    throw new GameError('There is no paused Autopilot to resume.');
+                }
+                $id = agent_park($uid, ['action' => 'resume']);
+                return [['status' => 'awaiting_player_confirmation'], ['type' => 'confirm', 'proposal_id' => $id, 'title' => 'Resume Tato Autopilot', 'terms' => $m['consent_text'], 'lines' => []]];
+            }
+            throw new GameError('Unknown Autopilot action.');
     }
     throw new GameError('Unknown tool.');
+}
+
+/** Parks an action until the player confirms it in the UI (5 minutes, single use). */
+function agent_park(int $uid, array $proposal): string
+{
+    $id = bin2hex(random_bytes(8));
+    $_SESSION['agent_proposals'][$id] = $proposal + ['uid' => $uid, 'expires' => time() + 300];
+    $_SESSION['agent_proposals'] = array_slice($_SESSION['agent_proposals'], -5, null, true);
+    return $id;
 }
 
 /** Validates a contest action and parks it until the player confirms. */
 function agent_propose(int $uid, string $action, int $entry, int $cid): array
 {
     $coins = (int) q('SELECT coins FROM users WHERE id = ?', [$uid])->fetchColumn();
+    // With Autopilot on, a short balance is topped up on confirm (inside the mandate).
+    $autopilot = ($m = mandate_active($uid)) && $m['status'] === 'active';
+    if ($autopilot) {
+        $coins += topup_split((int) $m['pack_usd'])['credit'];
+    }
     $lines = [];
     if ($action === 'create') {
         $entry = valid_stake((string) $entry);
@@ -237,9 +334,7 @@ function agent_propose(int $uid, string $action, int $entry, int $cid): array
     } else {
         throw new GameError('Unknown contest action.');
     }
-    $id = bin2hex(random_bytes(8));
-    $_SESSION['agent_proposals'][$id] = ['action' => $action, 'entry' => $entry, 'contest_id' => $cid, 'expires' => time() + 300];
-    $_SESSION['agent_proposals'] = array_slice($_SESSION['agent_proposals'], -5, null, true);
+    $id = agent_park($uid, ['action' => $action, 'entry' => $entry, 'contest_id' => $cid]);
     return [
         ['status' => 'awaiting_player_confirmation', 'summary' => $title],
         ['type' => 'confirm', 'proposal_id' => $id, 'title' => $title, 'lines' => $lines],
@@ -258,16 +353,24 @@ function agent_confirm(int $uid, string $id): array
 {
     $p = $_SESSION['agent_proposals'][$id] ?? null;
     unset($_SESSION['agent_proposals'][$id]);
-    if (!$p || $p['expires'] < time()) {
+    if (!$p || $p['expires'] < time() || ($p['uid'] ?? $uid) !== $uid) {
         throw new GameError('This confirmation expired. Ask Tato again.');
     }
     agent_log($uid, 'confirm', $p['action'], $p);
     switch ($p['action']) {
         case 'create':
+            mandate_cover($uid, (int) $p['entry']);
             $c = challenge_create($uid, (string) $p['entry']);
             return ['go' => 'wait', 'challenge' => $c, 'message' => 'Contest posted. Waiting for an opponent.'];
         case 'accept':
+            mandate_cover($uid, (int) $p['entry']);
             return ['go' => 'game', 'match_id' => challenge_accept($uid, (int) $p['contest_id']), 'message' => 'Contest accepted. Game on!'];
+        case 'mandate':
+            mandate_create($uid, (int) $p['pack'], (int) $p['below'], (int) $p['cap'], (int) $p['days']);
+            return ['go' => 'wallet', 'message' => 'Autopilot is on. You can pause or revoke it anytime.'];
+        case 'resume':
+            mandate_set_paused($uid, false);
+            return ['go' => 'wallet', 'message' => 'Autopilot resumed.'];
         case 'cancel':
             challenge_cancel($uid, (int) $p['contest_id']);
             return ['go' => 'arena', 'message' => $p['entry'] . ' coins refunded.'];

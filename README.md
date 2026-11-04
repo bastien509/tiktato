@@ -1,6 +1,8 @@
 # TikTato: 1v1 tic-tac-toe skill contests with PayPal and an AI wallet agent
 
-TikTato is a mobile-first web game where two players pay the same coin entry fee and play tic-tac-toe live, and the winner takes the prize pool. Players buy coins with **PayPal** (Orders v2, server-side), and **Tato**, an AI wallet agent built on **Claude**, helps them buy coins, set spending limits and start contests. Tato can prepare payments and contests, but only the player can approve them.
+TikTato is a mobile-first web game where two players pay the same coin entry fee and play tic-tac-toe live, and the winner takes the prize pool. Players buy coins with **PayPal** (Orders v2, server-side), and **Tato**, an AI wallet agent built on **Claude**, helps them buy coins, set spending limits and start contests.
+
+The headline feature is **Tato Autopilot**: agentic payments under a **mandate the player approves**. The player saves PayPal once (Vault v3) and approves exact terms, such as "a $5 pack when I drop below 200 coins, max $20 a week, for 7 days". The agent can then pay **without a redirect**, but never outside those terms, and the player can pause or revoke it in one tap.
 
 **Live demo:** https://petiht.com/tiktato/ (PayPal **sandbox**, so no real money moves)
 
@@ -20,6 +22,7 @@ TikTato is a mobile-first web game where two players pay the same coin entry fee
    - "Set a $15 weekly limit", then "Buy the $20 pack". Tato refuses because the server enforces the limit.
    - "Buy $10 of coins". Tato opens a real PayPal sandbox checkout. Pay with any **PayPal sandbox personal account** (create one at developer.paypal.com → Testing Tools → Sandbox Accounts). 950 coins arrive (5% fee).
    - "Post a 50-coin contest". Tato shows a **Confirm** card; nothing happens until you press it.
+   - **Autopilot:** in Wallet → **Tato Autopilot**, tap **Save PayPal for Autopilot**, approve with a sandbox personal account, then pick the terms and turn it on. Ask Tato "top me up now": the saved PayPal is charged with **no redirect**. Ask again straight away and the 2-minute cool-down refuses. Post a contest big enough to drop you below the refill level, and Autopilot tops you up by itself.
 2. **Play a contest.** Open a second browser or a private window and log in as `judge_blue`. Accept the open contest (a notification pops up). Play the game; the winner sees the "We have a winner" screen and a coin animation.
 3. **Practice vs AI.** Tap **PLAY → vs AI**. Easy makes mistakes; Hard uses minimax and never loses.
 
@@ -34,6 +37,16 @@ TikTato is a mobile-first web game where two players pay the same coin entry fee
 - **Responsible play:** weekly PayPal limits, enforced on every top-up. Lowering a limit is instant; raising it takes a 24-hour cool-down.
 - **Game feel:** animated board, a "money received" coin animation, a "We have a winner" celebration with the winner's avatar, live notifications, and a mobile-first layout.
 
+## Tato Autopilot: agent payments under a player mandate
+
+| Step | What happens | Where |
+|---|---|---|
+| 1. Save PayPal | `POST /v3/vault/setup-tokens` (`usage_type: MERCHANT`, `customer_type: CONSUMER`) → the player approves on PayPal → `POST /v3/vault/payment-tokens`. Only the token and a masked email are stored. If the redirect is lost, the server checks `GET /v3/vault/setup-tokens/{id}` and finishes the save. | `inc/autopilot.php`, `vault-return.php` |
+| 2. Approve a mandate | The player picks a pack ($5/$10/$20), a refill level (100–1,000 coins), a weekly cap ($10–$100) and an expiry (7 or 30 days) and ticks a consent box. The exact consent sentence is stored (`agent_mandates`). Through Tato, it is a **Confirm** card. | wallet card / `propose_autopilot` |
+| 3. Agent pays | `POST /v2/checkout/orders` with `payment_source.paypal.vault_id` captures off-session (no redirect). The server checks the capture and the reference id, then credits once through the ledger. Triggers: balance below the refill level, joining a contest short of coins, or "Tato, top me up". | `mandate_charge()` |
+| Guardrails | Pack size and weekly cap from the mandate, at most 3 packs a day, a 2-minute cool-down (claimed atomically), the player's own weekly limit, the expiry date, and an auto-pause after 2 declines. Pause and revoke are instant; turning on and resuming always need a confirmation. | server-side, every charge |
+| Audit | Every save, mandate change and charge (with the reason) goes to `agent_log`. Orders are tagged `source = 'mandate'`. | `agent_log`, `paypal_orders` |
+
 ## How PayPal is used
 
 All PayPal calls happen on the server (`inc/paypal.php`). The browser never sees the client secret, and the amount always comes from the server's pack list.
@@ -42,7 +55,8 @@ All PayPal calls happen on the server (`inc/paypal.php`). The browser never sees
 2. `POST /v2/checkout/orders` creates an order with `intent: CAPTURE`, an amount set by the server, a `reference_id`/`custom_id` linking it to the local order, and `experience_context` return URLs. A `PayPal-Request-Id` header makes the call idempotent.
 3. The buyer approves on PayPal and is sent back to `paypal-return.php`.
 4. `POST /v2/checkout/orders/{id}/capture` (also with `PayPal-Request-Id`) captures the payment. The server then checks the capture **status = COMPLETED**, the **amount and currency**, and the **reference id**, and only then credits coins. This happens once per order: the order row is locked in a database transaction, and a unique key on each ledger entry blocks double credits. `ORDER_ALREADY_CAPTURED` is handled by reading the order back.
-5. Optional webhook (`paypal-webhook.php`): the signature is checked with `/v1/notifications/verify-webhook-signature`. It handles `CHECKOUT.ORDER.APPROVED` (capture) and `PAYMENT.CAPTURE.COMPLETED` (credit), so buyers who close the tab still get their coins.
+5. **Vault v3** for Autopilot: setup tokens, payment tokens (create/read/delete), and Orders v2 with `vault_id` for off-session charges inside the mandate.
+6. Optional webhook (`paypal-webhook.php`): the signature is checked with `/v1/notifications/verify-webhook-signature`. It handles `CHECKOUT.ORDER.APPROVED` (capture) and `PAYMENT.CAPTURE.COMPLETED` (credit), so buyers who close the tab still get their coins.
 
 ## How AI is used
 
@@ -57,9 +71,13 @@ All PayPal calls happen on the server (`inc/paypal.php`). The browser never sees
 | `list_open_contests` | Live contests with the prize if won | Read-only |
 | `propose_contest_action` | Prepares create, accept or cancel | Shows a **Confirm** card; it only runs when the player presses it (one use, expires after 5 minutes) |
 | `get_recent_matches` | Results and net coins | Read-only |
+| `get_autopilot` | Saved-PayPal status, mandate, spend this week | Read-only |
+| `propose_autopilot` | Prepares a mandate (or a **Save PayPal** button) | The player must press **Confirm**; the terms are validated on the server |
+| `autopilot_topup_now` | Buys one pack with the saved PayPal, no redirect | Only inside the active mandate: caps, cool-down, limits and expiry are enforced on the server |
+| `change_autopilot` | Pause, revoke or resume | Pause and revoke are instant; resume needs **Confirm** |
 
 Design choices:
-- **The player stays in control.** The model can't move coins. Every action that spends money needs the player to approve it on PayPal or press Confirm.
+- **The player stays in control.** Outside Autopilot the model can't move coins: every action that spends money needs the player to approve it on PayPal or press Confirm. With Autopilot, the agent spends only inside a mandate the player approved, with server-side caps.
 - **Server-side checks.** Every tool re-checks auth, ownership, balance and limits. The model only sees the player's own data.
 - **Audit trail.** Every message, tool call and confirmation is written to `agent_log`.
 - **Strict tool schemas** (`strict: true`), `effort: low` for fast chat replies, server-side refusal fallbacks, and rate limits (15 messages per 5 minutes, 150 per day).
@@ -132,6 +150,8 @@ inc/bootstrap.php    config, PDO, schema install, session, CSRF, rate limits, he
 inc/game.php         contests, escrow, moves, win detection, settlement
 inc/paypal.php       PayPal Orders v2 + spending limits
 inc/agent.php        Tato: Claude tool-use agent
+inc/autopilot.php    Vault v3 saved PayPal + agent mandates + off-session charges
+vault-return.php     PayPal returns here after the player saves their account
 schema.sql           MySQL schema
 assets/              app.js, app.css, auth.js, logo.svg
 ```

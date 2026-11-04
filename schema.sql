@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS paypal_orders (
   user_id INT UNSIGNED NOT NULL,
   paypal_order_id VARCHAR(64) NULL,
   mode ENUM('sandbox','live') NOT NULL,
+  source ENUM('checkout','mandate') NOT NULL DEFAULT 'checkout',
+  mandate_id INT UNSIGNED NULL,
   amount_cents INT UNSIGNED NOT NULL,
   currency CHAR(3) NOT NULL DEFAULT 'USD',
   coins_gross INT UNSIGNED NOT NULL,
@@ -168,4 +170,39 @@ CREATE TABLE IF NOT EXISTS agent_log (
   PRIMARY KEY (id),
   KEY idx_agent_user (user_id, id),
   CONSTRAINT fk_agent_user FOREIGN KEY (user_id) REFERENCES users (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- PayPal accounts saved with the player's approval (Vault v3), used only by agent mandates.
+CREATE TABLE IF NOT EXISTS paypal_vault (
+  user_id INT UNSIGNED NOT NULL,
+  mode ENUM('sandbox','live') NOT NULL,
+  status ENUM('pending','active','removed') NOT NULL DEFAULT 'pending',
+  setup_token_id VARCHAR(64) NULL,
+  payment_token_id VARCHAR(64) NULL,
+  customer_id VARCHAR(64) NULL,
+  payer_email VARCHAR(190) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id),
+  UNIQUE KEY uq_vault_setup (setup_token_id),
+  CONSTRAINT fk_vault_user FOREIGN KEY (user_id) REFERENCES users (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- What the player allowed Tato to spend on their behalf (Autopilot).
+CREATE TABLE IF NOT EXISTS agent_mandates (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id INT UNSIGNED NOT NULL,
+  status ENUM('active','paused','revoked','expired') NOT NULL DEFAULT 'active',
+  pack_usd INT UNSIGNED NOT NULL,
+  refill_below INT UNSIGNED NOT NULL,
+  weekly_cap_usd INT UNSIGNED NOT NULL,
+  expires_at DATETIME NOT NULL,
+  consent_text VARCHAR(500) NOT NULL,
+  failures TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  last_attempt_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ended_at DATETIME NULL,
+  PRIMARY KEY (id),
+  KEY idx_mandate_user (user_id, status),
+  CONSTRAINT fk_mandate_user FOREIGN KEY (user_id) REFERENCES users (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

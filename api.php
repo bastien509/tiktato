@@ -9,6 +9,7 @@ require __DIR__ . '/inc/bootstrap.php';
 require __DIR__ . '/inc/game.php';
 require __DIR__ . '/inc/paypal.php';
 require __DIR__ . '/inc/agent.php';
+require __DIR__ . '/inc/autopilot.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -82,9 +83,16 @@ try {
             )->fetch();
             $notes = q('SELECT id, type, title, body, match_id FROM notifications WHERE user_id = ? AND is_read = 0 ORDER BY id DESC LIMIT 10', [$uid])->fetchAll();
             $online = (int) q('SELECT COUNT(*) FROM users WHERE last_seen_at > NOW() - INTERVAL 60 SECOND')->fetchColumn();
+            $me = me_payload($uid);
+            $due = q(
+                "SELECT 1 FROM agent_mandates WHERE user_id = ? AND status = 'active' AND expires_at > NOW() AND refill_below > ?
+                   AND (last_attempt_at IS NULL OR last_attempt_at < NOW() - INTERVAL " . MANDATE_COOLDOWN_SEC . " SECOND) LIMIT 1",
+                [$uid, $me['coins']]
+            )->fetchColumn();
             out([
                 'ok'            => true,
-                'me'            => me_payload($uid),
+                'me'            => $me,
+                'autopilot_due' => (bool) $due,
                 'challenges'    => $challenges,
                 'my_challenge'  => $mine ? ['id' => (int) $mine['id'], 'stake' => (int) $mine['stake'], 'secs_left' => (int) $mine['secs_left']] : null,
                 'active_match'  => active_match_id($uid),
@@ -96,6 +104,7 @@ try {
             out(['ok' => true, 'match' => match_view($uid, (int) ($_GET['id'] ?? 0)), 'me' => me_payload($uid)]);
 
         case 'GET wallet':
+            vault_sync($uid);
             $rows = q(
                 "SELECT id, type, amount, balance_after, match_id, note, created_at FROM wallet_ledger
                  WHERE account = 'user' AND user_id = ? ORDER BY id DESC LIMIT 40",
@@ -109,10 +118,16 @@ try {
                 'packs'    => $packs,
                 'paypal'   => ['ready' => paypal_ready(), 'mode' => paypal_mode()],
                 'limits'   => spending_limit($uid),
+                'autopilot' => mandate_status($uid) + ['options' => [
+                    'packs' => MANDATE_PACKS_USD, 'refill_below' => MANDATE_REFILL_BELOW, 'caps' => MANDATE_CAPS_USD, 'days' => MANDATE_DAYS,
+                ]],
                 'fees'     => ['topup_pct' => TOPUP_FEE_PCT, 'match_pct' => MATCH_FEE_PCT, 'coins_per_usd' => COINS_PER_USD],
             ]);
 
         case 'POST challenge_create':
+            if (preg_match('/^\d{1,6}$/', (string) ($in['stake'] ?? ''))) {
+                mandate_cover($uid, (int) $in['stake']);
+            }
             $c = challenge_create($uid, $in['stake'] ?? '');
             out(['ok' => true, 'challenge' => $c, 'me' => me_payload($uid)]);
 
@@ -121,6 +136,10 @@ try {
             out(['ok' => true, 'me' => me_payload($uid)]);
 
         case 'POST challenge_accept':
+            $need = (int) q("SELECT stake FROM challenges WHERE id = ? AND status = 'open'", [(int) ($in['id'] ?? 0)])->fetchColumn();
+            if ($need > 0) {
+                mandate_cover($uid, $need);
+            }
             $mid = challenge_accept($uid, (int) ($in['id'] ?? 0));
             out(['ok' => true, 'match_id' => $mid, 'me' => me_payload($uid)]);
 
@@ -161,6 +180,38 @@ try {
         case 'POST agent_confirm':
             $r = agent_confirm($uid, (string) ($in['proposal_id'] ?? ''));
             out(['ok' => true, 'result' => $r, 'me' => me_payload($uid)]);
+
+        case 'POST autopilot_tick':
+            $coins = (int) q('SELECT coins FROM users WHERE id = ?', [$uid])->fetchColumn();
+            out(['ok' => true, 'topup' => mandate_maybe_refill($uid, $coins), 'me' => me_payload($uid)]);
+
+        case 'POST vault_setup':
+            if (!rate_limit("vault-setup:$uid", 6, 600)) {
+                fail('Too many attempts. Wait a few minutes.', 429);
+            }
+            out(['ok' => true, 'approve_url' => vault_setup_start($uid)]);
+
+        case 'POST vault_remove':
+            vault_remove($uid);
+            out(['ok' => true, 'autopilot' => mandate_status($uid)]);
+
+        case 'POST mandate_create':
+            if (empty($in['consent'])) {
+                fail('Tick the box to approve the Autopilot terms.');
+            }
+            out(['ok' => true, 'autopilot' => mandate_create($uid, (int) ($in['pack_usd'] ?? 0), (int) ($in['refill_below'] ?? 0), (int) ($in['weekly_cap_usd'] ?? 0), (int) ($in['days'] ?? 0))]);
+
+        case 'POST mandate_change':
+            $act = (string) ($in['action'] ?? '');
+            if ($act === 'revoke') {
+                mandate_end($uid, 'revoked');
+                agent_log($uid, 'confirm', 'mandate_revoked', ['via' => 'wallet']);
+            } elseif ($act === 'pause' || $act === 'resume') {
+                mandate_set_paused($uid, $act === 'pause');
+            } else {
+                fail('Unknown action.');
+            }
+            out(['ok' => true, 'autopilot' => mandate_status($uid)]);
 
         case 'POST agent_reset':
             unset($_SESSION['agent_history'], $_SESSION['agent_proposals']);
