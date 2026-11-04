@@ -12,18 +12,19 @@ The headline feature is **Tato Autopilot**: agentic payments under a **mandate t
 
 ## For judges: test it in 5 minutes
 
-| Account | Password | Coins |
+| Account | Password | Use it for |
 |---|---|---|
-| `judge_red` | `TikTato-Judge-2026` | 1,900 (pre-funded) |
-| `judge_blue` | `TikTato-Judge-2026` | 1,900 (pre-funded) |
+| **`alice545`** | **`Rimpel12`** | **Main demo account.** PayPal is already saved and **Autopilot is on**: $5 packs below 200 coins, $20/week. |
+| `judge_blue` | `TikTato-Judge-2026` | Second player for a live 1v1 contest (1,900 coins) |
+| `judge_red` | `TikTato-Judge-2026` | Spare account without a saved PayPal, to try the full Autopilot set-up yourself (1,900 coins) |
 
-1. **Talk to the AI agent.** Log in as `judge_red` and tap **Ask Tato**. Try:
+1. **Talk to the AI agent.** Log in as `alice545` and tap **Ask Tato**. Try:
    - "What's my balance?"
    - "Set a $15 weekly limit", then "Buy the $20 pack". Tato refuses because the server enforces the limit.
    - "Buy $10 of coins". Tato opens a real PayPal sandbox checkout. Pay with any **PayPal sandbox personal account** (create one at developer.paypal.com → Testing Tools → Sandbox Accounts). 950 coins arrive (5% fee).
    - "Post a 50-coin contest". Tato shows a **Confirm** card; nothing happens until you press it.
-   - **Autopilot:** in Wallet → **Tato Autopilot**, tap **Save PayPal for Autopilot**, approve with a sandbox personal account, then pick the terms and turn it on. Ask Tato "top me up now": the saved PayPal is charged with **no redirect**. Ask again straight away and the 2-minute cool-down refuses. Post a contest big enough to drop you below the refill level, and Autopilot tops you up by itself.
-2. **Play a contest.** Open a second browser or a private window and log in as `judge_blue`. Accept the open contest (a notification pops up). Play the game; the winner sees the "We have a winner" screen and a coin animation.
+   - **Autopilot (already on for `alice545`):** ask Tato "top me up now": the saved PayPal is charged with **no redirect**. To try the set-up yourself, log in as `judge_red`, open Wallet → **Tato Autopilot**, tap **Save PayPal for Autopilot**, approve with a sandbox personal account, then pick the terms and turn it on. Ask again straight away and the 2-minute cool-down refuses. Post a contest big enough to drop you below the refill level, and Autopilot tops you up by itself.
+2. **Play a contest.** As `alice545`, post a contest. Open a second browser or a private window and log in as `judge_blue`. Accept the open contest (a notification pops up). Play the game; the winner sees the "We have a winner" screen and a coin animation.
 3. **Practice vs AI.** Tap **PLAY → vs AI**. Easy makes mistakes; Hard uses minimax and never loses.
 
 ---
