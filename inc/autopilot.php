@@ -18,7 +18,7 @@ defined('TTT') || exit;
 const MANDATE_PACKS_USD = [5, 10, 20];
 const MANDATE_REFILL_BELOW = [100, 200, 500, 1000];
 const MANDATE_CAPS_USD = [10, 20, 50, 100];
-const MANDATE_DAYS = [7, 30];
+const MANDATE_DAYS = [7, 30, 60];
 const MANDATE_COOLDOWN_SEC = 120;   // between two auto top-ups
 const MANDATE_MAX_PER_DAY = 3;
 const MANDATE_MAX_FAILURES = 2;     // pause after this many declined charges
@@ -166,7 +166,7 @@ function mandate_validate(int $pack, int $below, int $cap, int $days): void
 {
     if (!in_array($pack, MANDATE_PACKS_USD, true) || !in_array($below, MANDATE_REFILL_BELOW, true)
         || !in_array($cap, MANDATE_CAPS_USD, true) || !in_array($days, MANDATE_DAYS, true)) {
-        throw new GameError('Choose a pack of $5/$10/$20, a refill level of 100/200/500/1000 coins, a weekly cap of $10/$20/$50/$100 and 7 or 30 days.');
+        throw new GameError('Choose a pack of $5/$10/$20, a refill level of 100/200/500/1000 coins, a weekly cap of $10/$20/$50/$100 and 7, 30 or 60 days.');
     }
     if ($cap < $pack) {
         throw new GameError('The weekly cap must be at least one pack.');
