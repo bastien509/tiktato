@@ -28,7 +28,7 @@ $GLOBALS['TTT_CFG'] = (static function (): array {
 
 const TTT_AVATARS = ['🦁', '🐯', '🦊', '🐼', '🐸', '🐵', '🦅', '🐬', '🦖', '🐺', '🐨', '🐧'];
 const TTT_COLORS  = ['#F5C518', '#D21034', '#1E6BFF', '#14B8A6', '#22C55E', '#FF7A1A'];
-const TTT_ASSET_VER = '3';
+const TTT_ASSET_VER = '4';
 
 function cfg(string $path, $default = null)
 {
@@ -187,6 +187,13 @@ function redirect(string $path): void
     exit;
 }
 
+/** Per-request nonce that lets AG Grid inject its theme <style> under the CSP. */
+function csp_nonce(): string
+{
+    static $nonce = null;
+    return $nonce ??= base64_encode(random_bytes(16));
+}
+
 function send_security_headers(): void
 {
     if (headers_sent()) {
@@ -202,7 +209,9 @@ function send_security_headers(): void
     }
     header(
         "Content-Security-Policy: default-src 'self'; img-src 'self' data:; "
-        . "style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
+        // The AG Grid page gets a nonce so the grid can inject its theme <style>.
+        . "style-src 'self'" . (defined('TTT_GRID_PAGE') ? " 'nonce-" . csp_nonce() . "'" : '') . ' https://fonts.googleapis.com; '
+        . "font-src 'self' https://fonts.gstatic.com; "
         . "script-src 'self'; connect-src 'self'; form-action 'self'; "
         . "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
     );

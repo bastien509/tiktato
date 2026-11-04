@@ -10,6 +10,7 @@ require __DIR__ . '/inc/game.php';
 require __DIR__ . '/inc/paypal.php';
 require __DIR__ . '/inc/agent.php';
 require __DIR__ . '/inc/autopilot.php';
+require __DIR__ . '/inc/dashboard.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -99,6 +100,13 @@ try {
                 'notifications' => array_map(fn ($n) => ['id' => (int) $n['id'], 'type' => $n['type'], 'title' => $n['title'], 'body' => $n['body'], 'match_id' => $n['match_id'] ? (int) $n['match_id'] : null], $notes),
                 'online'        => max(1, $online),
             ]);
+
+        case 'GET dashboard':
+            $platform = ($_GET['scope'] ?? '') === 'platform';
+            if ($platform && !(int) $me['is_admin']) {
+                fail('Admins only.', 403);
+            }
+            out(['ok' => true, 'scope' => $platform ? 'platform' : 'me'] + dashboard_data($uid, $platform));
 
         case 'GET match':
             out(['ok' => true, 'match' => match_view($uid, (int) ($_GET['id'] ?? 0)), 'me' => me_payload($uid)]);

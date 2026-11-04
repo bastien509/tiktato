@@ -25,7 +25,8 @@ The headline feature is **Tato Autopilot**: agentic payments under a **mandate t
    - "Post a 50-coin contest". Tato shows a **Confirm** card; nothing happens until you press it.
    - **Autopilot (already on for `alice545`):** ask Tato "top me up now": the saved PayPal is charged with **no redirect**. To try the set-up yourself, log in as `judge_red`, open Wallet → **Tato Autopilot**, tap **Save PayPal for Autopilot**, approve with a sandbox personal account, then pick the terms and turn it on. Ask again straight away and the 2-minute cool-down refuses. Post a contest big enough to drop you below the refill level, and Autopilot tops you up by itself.
 2. **Play a contest.** As `alice545`, post a contest. Open a second browser or a private window and log in as `judge_blue`. Accept the open contest (a notification pops up). Play the game; the winner sees the "We have a winner" screen and a coin animation.
-3. **Practice vs AI.** Tap **PLAY → vs AI**. Easy makes mistakes; Hard uses minimax and never loses.
+3. **Activity & audit dashboard (AG Grid).** Tap **Activity** in the bottom bar. Four live grids show Tato's actions (every tool call, refusal and approval), the wallet ledger, PayPal orders (🤖 Autopilot vs checkout) and matches. Try the column filters, search, sorting, the totals row and **Export CSV**.
+4. **Practice vs AI.** Tap **PLAY → vs AI**. Easy makes mistakes; Hard uses minimax and never loses.
 
 ---
 
@@ -103,12 +104,28 @@ The built-in practice opponent is a classic game AI: random play on Easy, win/bl
 | Loss with a 100-coin entry | −100 | – |
 | Draw | both entries refunded | 0 |
 
+## Activity & audit dashboard (AG Grid)
+
+`dashboard.php` + `assets/dashboard.js` use **AG Grid Community 36.2** (MIT, self-hosted in `assets/vendor/`) so players and judges can see what the agent and the money did.
+
+| Grid | Rows | AG Grid features used |
+|---|---|---|
+| 🤖 Agent actions | Every Tato chat, tool call, refusal and player approval (`agent_log`) | Custom badge renderers (DOM-built, no HTML injection), result filter, tooltips, row highlighting for refusals and Autopilot charges |
+| 🧾 Wallet ledger | Double-entry rows: player, escrow, platform | Signed numbers with +/− colouring, number and date filters, a pinned totals row that follows the filters (it equals the PayPal coins bought) |
+| 💳 PayPal orders | Checkouts and 🤖 Autopilot (Vault) charges | Source and status badges, USD/coins/fee totals |
+| ⚔️ Matches | Results, how each ended, net coins | Outcome badges, net-coin totals |
+
+All four grids share a quick filter, floating filters, sorting, resizing, pagination, CSV export, live refresh every 6 s (`getRowId` delta updates with flashing new rows) and a themed `themeQuartz` dark palette. Admins get a **Platform** view of every account, with KPI tiles and a live "ledger balanced" check.
+
+**Strict CSP kept:** the grid page gets a per-request nonce, passed as AG Grid's `styleNonce`. Every other page keeps `style-src 'self'`, and there is no `unsafe-inline` anywhere.
+
 ## Tech stack
 
 - PHP 8.2 (no framework) and MySQL/MariaDB, running on shared hosting
 - Real time through short polling (1–2 s), since the host has no websockets
 - PayPal REST APIs: OAuth2, Orders v2, Webhooks
 - Anthropic Claude (`claude-opus-5-5`) with tool use, via `anthropic-ai/sdk` (Composer) and Guzzle
+- AG Grid Community 36.2 for the activity and audit grids
 - Vanilla JS and CSS: animations use the Web Animations API, confetti is drawn on a canvas, and there is no build step
 
 ## Run it yourself
@@ -151,6 +168,8 @@ inc/bootstrap.php    config, PDO, schema install, session, CSRF, rate limits, he
 inc/game.php         contests, escrow, moves, win detection, settlement
 inc/paypal.php       PayPal Orders v2 + spending limits
 inc/agent.php        Tato: Claude tool-use agent
+inc/dashboard.php    data for the AG Grid activity & audit dashboard
+dashboard.php        AG Grid dashboard page (assets/dashboard.js)
 inc/autopilot.php    Vault v3 saved PayPal + agent mandates + off-session charges
 vault-return.php     PayPal returns here after the player saves their account
 schema.sql           MySQL schema

@@ -125,7 +125,7 @@ page_head('TikTato · Arena', 'app', [
     <p class="note" id="ppNote"></p>
     <div class="limit-card" id="limitCard"></div>
     <div class="autopilot-card" id="autopilotCard"></div>
-    <div class="section-head"><h2>History</h2></div>
+    <div class="section-head"><h2>History</h2><a class="mode-pill dash-link" href="<?= e(url('dashboard.php')) ?>">Full activity &amp; audit ›</a></div>
     <ul class="ledger" id="ledger"></ul>
   </section>
 
@@ -160,6 +160,7 @@ page_head('TikTato · Arena', 'app', [
 <nav class="tabbar" id="tabbar">
   <button type="button" data-go="arena" class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v6H3V3h6Zm12 0v6h-6V3h6ZM9 15v6H3v-6h6Zm12 0v6h-6v-6h6Z"/></svg><span>Arena</span></button>
   <button type="button" data-go="wallet" class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7V5a2 2 0 0 0-2-2H5a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h15a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Zm-2-2v2H5a1 1 0 0 1 0-2h13Zm-1 10a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg><span>Wallet</span></button>
+  <a href="<?= e(url('dashboard.php')) ?>" class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h2v16h16v2H3V3Zm4 10h3v4H7v-4Zm5-6h3v10h-3V7Zm5 3h3v7h-3v-7Z"/></svg><span>Activity</span></a>
   <button type="button" data-go="profile" class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5Z"/></svg><span>Profile</span></button>
 </nav>
 

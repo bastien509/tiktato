@@ -663,3 +663,47 @@ body.in-game .tato-fab { display: none; }
 .ap-recent li { padding: 4px 0; }
 .ap-link { display: block; margin: 12px auto 0; border: 0; background: none; color: var(--muted); font-size: 13px; text-decoration: underline; }
 .autopilot-card .confirm-lines { margin-top: 10px; }
+
+/* ---------- Activity & audit dashboard (AG Grid) ---------- */
+body.dash { padding-bottom: 24px; }
+.dash-back { min-height: 40px; padding: 0 14px; font-size: 15px; text-decoration: none; }
+.dash-main { max-width: 1240px; margin: 0 auto; padding: 18px 16px 24px; }
+.dash-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.dash-head .screen-sub { margin-bottom: 4px; }
+.dash-head-right { display: flex; align-items: center; gap: 10px; }
+.dash-scope { margin: 0; }
+.dash-scope button { padding: 0 14px; white-space: nowrap; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 16px 0; }
+.kpi { padding: 12px 14px; border-radius: 16px; background: var(--card); border: 1.5px solid var(--line); }
+.kpi small { display: block; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+.kpi b { display: block; margin-top: 4px; font: 400 22px/1.15 var(--display); color: var(--gold); }
+.dash-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.dash-tabs button { flex: none; padding: 10px 14px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); color: var(--muted); font-weight: 900; font-size: 14px; }
+.dash-tabs button b { margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: rgba(255, 255, 255, .08); font-size: 12px; }
+.dash-tabs button.on { color: #2a1d00; background: var(--gold); border-color: var(--gold); }
+.dash-tabs button.on b { background: rgba(0, 0, 0, .15); }
+.dash-tools { display: flex; gap: 10px; margin-top: 12px; }
+.dash-search { flex: 1; min-height: 46px; }
+.dash-search input { height: 44px; font-size: 15px; }
+.dash-tools .btn { min-height: 46px; font-size: 15px; white-space: nowrap; }
+.dash-grid { height: calc(100vh - 330px); height: calc(100dvh - 330px); min-height: 460px; }
+.dash-foot { margin-top: 12px; }
+.dash-empty { color: var(--muted); font-weight: 800; }
+.cell-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 900; line-height: 1.6; }
+.cell-badge.gold { background: rgba(245, 197, 24, .16); color: var(--gold); }
+.cell-badge.teal { background: rgba(20, 184, 166, .2); color: #5eead4; }
+.cell-badge.blue { background: rgba(30, 107, 255, .22); color: #93b8ff; }
+.cell-badge.green { background: rgba(34, 197, 94, .18); color: #86efac; }
+.cell-badge.red { background: rgba(210, 16, 52, .22); color: #ff8a9a; }
+.cell-badge.muted { background: rgba(255, 255, 255, .08); color: var(--muted); }
+.num-plus { color: #86efac; font-weight: 800; }
+.num-minus { color: #ff8a9a; font-weight: 800; }
+.row-refused { box-shadow: inset 3px 0 0 var(--red); }
+.row-autopilot { box-shadow: inset 3px 0 0 var(--teal); }
+.ag-floating-bottom .ag-row { font-weight: 900; color: var(--gold); }
+@media (max-width: 640px) {
+  .dash-grid { height: 70vh; min-height: 420px; }
+  .kpi b { font-size: 19px; }
+}
+a.tab { text-decoration: none; }
+.dash-link { text-decoration: none; }
