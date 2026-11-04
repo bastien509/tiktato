@@ -38,14 +38,21 @@ $uid = (int) $me['id'];
 if ($isPost && !csrf_valid()) {
     fail('Your session expired. Reload the page.', 419);
 }
-// Polls run every 1-2 s, so the read budget is generous; actions are tighter.
-if (!rate_limit("api:$uid:" . ($isPost ? 'w' : 'r'), $isPost ? 40 : 150, 60)) {
+// Reads cover several open tabs polling every 1-2 s (lobby, match, dashboard); actions are tighter.
+if (!rate_limit("api:$uid:" . ($isPost ? 'w' : 'r'), $isPost ? 40 : 360, 60)) {
     fail('Slow down a little and try again.', 429);
 }
 
 $in = $_POST;
 if ($isPost && str_starts_with((string) ($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json')) {
     $in = json_decode((string) file_get_contents('php://input'), true) ?: [];
+}
+
+// PHP locks the session for the whole request. Release it now so a slow call
+// (Claude, PayPal) never stalls this player's lobby and match polls in other tabs.
+// Only these quick actions write the session; 'agent' saves its state at the end.
+if (!($isPost && in_array($action, ['agent_confirm', 'agent_reset', 'vault_setup'], true))) {
+    session_write_close();
 }
 
 function me_payload(int $uid): array

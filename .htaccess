@@ -13,8 +13,14 @@ DirectoryIndex index.php
     </IfModule>
 </FilesMatch>
 
+# PHP output is per-user and live: never cacheable, even if a script dies before
+# sending its own headers (the host's default would otherwise be public for 2 days).
 # Versioned static assets (?v=) can be cached for a long time.
 <IfModule mod_headers.c>
+    <FilesMatch "\.php$">
+        Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0, private"
+        Header always unset Expires
+    </FilesMatch>
     <FilesMatch "\.(css|js|svg)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </FilesMatch>

@@ -42,7 +42,8 @@
   function api(action, params, method) {
     method = method || (params ? 'POST' : 'GET');
     var url = BASE + '/api.php?a=' + encodeURIComponent(action);
-    var opt = { method: method, credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    // no-store: never read or write the HTTP cache. Live state must always come from the server.
+    var opt = { method: method, credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } };
     if (method === 'GET' && params) url += '&' + new URLSearchParams(params).toString();
     if (method === 'POST') {
       opt.headers['Content-Type'] = 'application/json';
@@ -168,8 +169,31 @@
     var w = $('#walletCoins');
     if (w) { w.textContent = fmt(n); $('#walletUsd').textContent = '≈ $' + (n / 100).toFixed(2); }
   }
+  // One browser shares one login. If another tab logs in as someone else, this
+  // tab must stop acting for the old player instead of silently becoming them.
+  var MY_ID = +body.dataset.uid;
+  var switched = false;
+  function accountSwitched(me) {
+    if (switched) return;
+    switched = true;
+    clearTimeout(S.lobbyTimer);
+    clearTimeout(S.matchTimer);
+    var ov = h('div', 'switch-overlay');
+    var card = h('div', 'switch-card');
+    card.appendChild(h('b', '', 'This tab changed account'));
+    card.appendChild(h('p', '', 'Another tab in this browser signed in as ' + me.username + '. A browser keeps one login at a time, so this tab now plays as ' + me.username + ' too.'));
+    card.appendChild(h('p', 'note', 'To play two accounts against each other, use a private window or another browser for the second player.'));
+    var btn = h('button', 'btn btn-cta btn-block', 'Reload as ' + me.username);
+    btn.type = 'button';
+    btn.addEventListener('click', function () { location.reload(); });
+    card.appendChild(btn);
+    ov.appendChild(card);
+    document.body.appendChild(ov);
+  }
+
   function setMe(me) {
     if (!me) return;
+    if (MY_ID && me.id !== MY_ID) { accountSwitched(me); return; }
     S.me = me;
     setCoins(me.coins);
     $('#statW').textContent = me.wins; $('#statL').textContent = me.losses; $('#statD').textContent = me.draws;
@@ -180,7 +204,9 @@
 
   function pollLobby() {
     clearTimeout(S.lobbyTimer);
+    if (switched) return;
     api('lobby', null, 'GET').then(onLobby, function () {}).then(function () {
+      if (switched) return;
       var delay = document.hidden ? 8000 : (S.view === 'game' ? 5000 : 2000);
       S.lobbyTimer = setTimeout(pollLobby, delay);
     });
@@ -189,9 +215,11 @@
 
   function onLobby(d) {
     setMe(d.me);
+    if (switched) return;
     $('#onlineCount').textContent = d.online;
     S.myChallenge = d.my_challenge;
     renderChallenges(d.challenges);
+    renderMyChallenge(d.my_challenge);
 
     if (d.active_match && d.active_match !== S.matchId) {
       if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
@@ -203,6 +231,30 @@
     handleNotifications(d.notifications);
     if (d.autopilot_due) autopilotTick();
     S.firstLobby = false;
+  }
+
+  // Your own open contest, pinned on top of the list (other players see it as "Accept").
+  function renderMyChallenge(c) {
+    var old = $('#myChallengeRow');
+    if (old) old.remove();
+    if (!c) return;
+    var li = h('li', 'challenge mine');
+    li.id = 'myChallengeRow';
+    li.appendChild(avatar(S.me || { avatar: $('#meAvatar').textContent, color: 0 }, 'sm'));
+    var info = h('div', 'ch-info');
+    info.appendChild(h('p', 'ch-name', 'Your contest is live'));
+    info.appendChild(h('p', 'ch-meta', 'Visible to other players · ' + Math.ceil(c.secs_left / 60) + ' min left'));
+    li.appendChild(info);
+    var st = h('span', 'ch-stake');
+    st.appendChild(h('span', 'coin sm'));
+    st.appendChild(document.createTextNode(fmt(c.stake)));
+    li.appendChild(st);
+    var b = h('button', 'btn btn-ghost ch-accept', 'View');
+    b.type = 'button';
+    b.addEventListener('click', function () { go('wait'); });
+    li.appendChild(b);
+    $('#challengeList').insertBefore(li, $('#challengeList').firstChild);
+    $('#challengeEmpty').hidden = true;
   }
 
   function renderChallenges(list) {
@@ -232,7 +284,7 @@
       ul.appendChild(li);
     });
     S.seen = nextSeen;
-    $('#challengeEmpty').hidden = list.length > 0;
+    $('#challengeEmpty').hidden = list.length > 0 || !!S.myChallenge;
     var badge = $('#bellBadge');
     badge.hidden = list.length === 0;
     badge.textContent = list.length;
@@ -496,6 +548,7 @@
 
   function pollMatch() {
     clearTimeout(S.matchTimer);
+    if (switched) return;
     if (S.view !== 'game' || !S.matchId) return;
     var id = S.matchId;
     api('match', { id: id }, 'GET').then(function (d) {

@@ -202,7 +202,7 @@
   function load(resetCols) {
     clearTimeout(state.timer);
     var scope = state.scope;
-    fetch(BASE + '/api.php?a=dashboard&scope=' + scope, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    fetch(BASE + '/api.php?a=dashboard&scope=' + scope, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
       .then(function (r) {
         if (r.status === 401) { location.href = BASE + '/login.php'; throw new Error('logged out'); }
         return r.json();

@@ -435,7 +435,11 @@ function agent_chat(int $uid, string $text): array
     // Only plain text goes into the saved history, so no SDK objects sit in the session.
     $history[] = ['role' => 'user', 'content' => $text];
     $history[] = ['role' => 'assistant', 'content' => $reply];
-    $_SESSION['agent_history'] = array_slice($history, -2 * AGENT_HISTORY_TURNS);
+    // The API released the session lock before this slow loop; store the results now.
+    session_store([
+        'agent_history'   => array_slice($history, -2 * AGENT_HISTORY_TURNS),
+        'agent_proposals' => $_SESSION['agent_proposals'] ?? null,
+    ]);
     agent_log($uid, 'message', '', ['user' => $text, 'reply' => $reply]);
     return ['reply' => $reply, 'cards' => $cards];
 }

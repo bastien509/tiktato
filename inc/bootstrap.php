@@ -15,6 +15,19 @@ if (PHP_SAPI !== 'cli' && basename($_SERVER['SCRIPT_NAME'] ?? '') === 'bootstrap
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
 ini_set('log_errors', '1');
+// Our own log, inside inc/ (denied to the web), so errors on shared hosting are findable.
+ini_set('error_log', __DIR__ . '/php-errors.log');
+register_shutdown_function(static function (): void {
+    $err = error_get_last();
+    if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        error_log('TikTato fatal on ' . ($_SERVER['REQUEST_URI'] ?? 'cli') . ': ' . $err['message'] . ' @ ' . $err['file'] . ':' . $err['line']);
+        if (!headers_sent() && str_contains((string) ($_SERVER['SCRIPT_NAME'] ?? ''), 'api.php')) {
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+            echo '{"ok":false,"error":"Server error. Please try again."}';
+        }
+    }
+});
 date_default_timezone_set('UTC');
 
 $GLOBALS['TTT_CFG'] = (static function (): array {
@@ -28,7 +41,7 @@ $GLOBALS['TTT_CFG'] = (static function (): array {
 
 const TTT_AVATARS = ['🦁', '🐯', '🦊', '🐼', '🐸', '🐵', '🦅', '🐬', '🦖', '🐺', '🐨', '🐧'];
 const TTT_COLORS  = ['#F5C518', '#D21034', '#1E6BFF', '#14B8A6', '#22C55E', '#FF7A1A'];
-const TTT_ASSET_VER = '4';
+const TTT_ASSET_VER = '6';
 
 function cfg(string $path, $default = null)
 {
@@ -238,6 +251,22 @@ function start_session(): void
         'samesite' => 'Lax',
     ]);
     session_start();
+}
+
+/** Re-opens a released session just long enough to store $values (null removes a key). */
+function session_store(array $values): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+    foreach ($values as $key => $value) {
+        if ($value === null) {
+            unset($_SESSION[$key]);
+        } else {
+            $_SESSION[$key] = $value;
+        }
+    }
+    session_write_close();
 }
 
 function csrf_token(): string

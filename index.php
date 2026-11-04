@@ -13,6 +13,7 @@ $coinRain = (int) ($_SESSION['coin_rain'] ?? 0);
 unset($_SESSION['coin_rain']);
 
 page_head('TikTato · Arena', 'app', [
+    'uid' => (string) $me['id'],
     'coin-rain' => (string) $coinRain,
     'stake-min' => (string) STAKE_MIN,
     'stake-max' => (string) STAKE_MAX,

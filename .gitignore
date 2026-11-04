@@ -1,3 +1,4 @@
 /vendor/
 inc/config.php
 inc/*.lock
+inc/php-errors.log
