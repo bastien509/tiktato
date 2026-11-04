@@ -4,7 +4,7 @@ TikTato is a mobile-first web game where two players pay the same coin entry fee
 
 The headline feature is **Tato Autopilot**: agentic payments under a **mandate the player approves**. The player saves PayPal once (Vault v3) and approves exact terms, such as "a $5 pack when I drop below 200 coins, max $20 a week, for 7 days". The agent can then pay **without a redirect**, but never outside those terms, and the player can pause or revoke it in one tap.
 
-**Live demo:** https://petiht.com/tiktato/ (PayPal **sandbox**, so no real money moves)
+**Live demo:** https://petiht.com/tiktato/ (PayPal **sandbox**, so no real money moves). Logged-out visitors see a landing page with live numbers from the database and the 2:33 demo video.
 
 > Built for the PayPal AI Hackathon (Oct–Nov 2026). Coins have no cash value and cannot be withdrawn in this demo.
 
@@ -168,6 +168,7 @@ inc/bootstrap.php    config, PDO, schema install, session, CSRF, rate limits, he
 inc/game.php         contests, escrow, moves, win detection, settlement
 inc/paypal.php       PayPal Orders v2 + spending limits
 inc/agent.php        Tato: Claude tool-use agent
+landing.php          public landing page (live stats, PayPal API depth, demo video, judge guide)
 inc/dashboard.php    data for the AG Grid activity & audit dashboard
 dashboard.php        AG Grid dashboard page (assets/dashboard.js)
 inc/autopilot.php    Vault v3 saved PayPal + agent mandates + off-session charges

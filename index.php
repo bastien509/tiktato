@@ -7,7 +7,12 @@ require __DIR__ . '/inc/paypal.php';
 require __DIR__ . '/inc/agent.php';
 require __DIR__ . '/inc/layout.php';
 
-$me = require_login_page();
+$me = current_user();
+if (!$me) {
+    // Logged-out visitors (and judges) get the product landing page.
+    require __DIR__ . '/landing.php';
+    exit;
+}
 $p = public_profile($me);
 $coinRain = (int) ($_SESSION['coin_rain'] ?? 0);
 unset($_SESSION['coin_rain']);

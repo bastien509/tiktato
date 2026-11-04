@@ -2,3 +2,4 @@
 inc/config.php
 inc/*.lock
 inc/php-errors.log
+assets/landing/*.mp4

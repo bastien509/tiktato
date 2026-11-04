@@ -41,7 +41,7 @@ $GLOBALS['TTT_CFG'] = (static function (): array {
 
 const TTT_AVATARS = ['🦁', '🐯', '🦊', '🐼', '🐸', '🐵', '🦅', '🐬', '🦖', '🐺', '🐨', '🐧'];
 const TTT_COLORS  = ['#F5C518', '#D21034', '#1E6BFF', '#14B8A6', '#22C55E', '#FF7A1A'];
-const TTT_ASSET_VER = '6';
+const TTT_ASSET_VER = '7';
 
 function cfg(string $path, $default = null)
 {

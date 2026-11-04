@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 defined('TTT') || exit;
 
-function page_head(string $title, string $bodyClass, array $bodyData = []): void
+function page_head(string $title, string $bodyClass, array $bodyData = [], array $extraCss = [], string $description = ''): void
 {
     $attrs = '';
     foreach ($bodyData as $k => $v) {
@@ -16,13 +16,20 @@ function page_head(string $title, string $bodyClass, array $bodyData = []): void
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#070d1c">
 <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
-<meta name="robots" content="noindex">
+<meta name="robots" content="<?= $description !== '' ? 'index, follow' : 'noindex' ?>">
+<?php if ($description !== ''): ?><meta name="description" content="<?= e($description) ?>">
+<meta property="og:title" content="<?= e($title) ?>">
+<meta property="og:description" content="<?= e($description) ?>">
+<meta property="og:image" content="<?= e(abs_url('assets/landing/video-poster.jpg')) ?>">
+<?php endif; ?>
 <title><?= e($title) ?></title>
 <link rel="icon" href="<?= e(asset('logo.svg')) ?>" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;700;800;900&display=swap">
 <link rel="stylesheet" href="<?= e(asset('app.css')) ?>">
+<?php foreach ($extraCss as $css): ?><link rel="stylesheet" href="<?= e(asset($css)) ?>">
+<?php endforeach; ?>
 </head>
 <body class="<?= e($bodyClass) ?>" data-base="<?= e(base_path()) ?>"<?= $attrs ?>>
 <?php
