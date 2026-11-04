@@ -14,7 +14,7 @@ The headline feature is **Tato Autopilot**: agentic payments under a **mandate t
 
 | Account | Password | Use it for |
 |---|---|---|
-| **`alice545`** | **`Rimpel12`** | **Main demo account.** PayPal is already saved and **Autopilot is on**: $5 packs below 200 coins, $20/week. |
+| **`alice545`** | **`Rimpel12`** | **Main demo account.** PayPal is already saved and **Autopilot is on**: $5 packs below 200 coins, $20/week. Also an **admin**: it can open the dashboard's **Platform** view and `/admin.php`. |
 | `judge_blue` | `TikTato-Judge-2026` | Second player for a live 1v1 contest (1,900 coins) |
 | `judge_red` | `TikTato-Judge-2026` | Spare account without a saved PayPal, to try the full Autopilot set-up yourself (1,900 coins) |
 
@@ -25,7 +25,7 @@ The headline feature is **Tato Autopilot**: agentic payments under a **mandate t
    - "Post a 50-coin contest". Tato shows a **Confirm** card; nothing happens until you press it.
    - **Autopilot (already on for `alice545`):** ask Tato "top me up now": the saved PayPal is charged with **no redirect**. To try the set-up yourself, log in as `judge_red`, open Wallet → **Tato Autopilot**, tap **Save PayPal for Autopilot**, approve with a sandbox personal account, then pick the terms and turn it on. Ask again straight away and the 2-minute cool-down refuses. Post a contest big enough to drop you below the refill level, and Autopilot tops you up by itself.
 2. **Play a contest.** As `alice545`, post a contest. Open a second browser or a private window and log in as `judge_blue`. Accept the open contest (a notification pops up). Play the game; the winner sees the "We have a winner" screen and a coin animation.
-3. **Activity & audit dashboard (AG Grid).** Tap **Activity** in the bottom bar. Four live grids show Tato's actions (every tool call, refusal and approval), the wallet ledger, PayPal orders (🤖 Autopilot vs checkout) and matches. Try the column filters, search, sorting, the totals row and **Export CSV**.
+3. **Activity & audit dashboard (AG Grid).** Tap **Activity** in the bottom bar. Four live grids show Tato's actions (every tool call, refusal and approval), the wallet ledger, PayPal orders (🤖 Autopilot vs checkout) and matches. Try the column filters, search, sorting, the totals row and **Export CSV**. As `alice545`, switch to **Platform** to see every account and the live "Ledger balanced ✓" check.
 4. **Practice vs AI.** Tap **PLAY → vs AI**. Easy makes mistakes; Hard uses minimax and never loses.
 
 ---
