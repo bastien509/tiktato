@@ -1,0 +1,21 @@
+# TikTato (petiht.com/tiktato)
+Options -Indexes -MultiViews
+DirectoryIndex index.php
+
+# Schema, docs and dotfiles are never served.
+<FilesMatch "\.(sql|md|lock|log|ini|sh|bak)$|^\.|^composer\.(json|lock)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Versioned static assets (?v=) can be cached for a long time.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|svg)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+</IfModule>
